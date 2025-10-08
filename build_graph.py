@@ -21,6 +21,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import Counter
 
+# Checkpoint interval: save large graph file every N files
+CHECKPOINT_INTERVAL = 5
+
 # Doctrinal keywords for entity extraction
 DOCTRINAL_KEYWORDS = ['grace', 'election', 'atonement', 'sovereignty', 'predestination',
                       'covenant', 'sanctification', 'justification', 'regeneration', 'faith']
@@ -735,6 +738,7 @@ def main():
 
     successful_files = len(processed_files)  # Start with already processed count
     failed_files = 0
+    files_completed_this_run = 0  # Counter for files completed in current run
 
     # Filter out already processed files
     files_to_process = [(file_path, file_index) for file_index, file_path in enumerate(all_files, start=1)
@@ -752,6 +756,8 @@ def main():
     else:
         print(f"Processing {len(files_to_process)} files with 4 parallel workers...")
         logger.info(f"Processing {len(files_to_process)} files with 4 parallel workers...")
+        print(f"Graph checkpoint will be saved every {CHECKPOINT_INTERVAL} files")
+        logger.info(f"Graph checkpoint will be saved every {CHECKPOINT_INTERVAL} files")
 
         # Use ProcessPoolExecutor for parallel processing
         with ProcessPoolExecutor(max_workers=4) as executor:
@@ -770,6 +776,7 @@ def main():
                     if chunks:
                         all_library_chunks.extend(chunks)
                         successful_files += 1
+                        files_completed_this_run += 1
 
                         # Add chunks to graph
                         for chunk in chunks:
@@ -783,20 +790,22 @@ def main():
                                 figures=', '.join(chunk['figures'])
                             )
 
-                        # Save checkpoint after successful processing
+                        # TIER 1: Always save the small processed files list (fast & reliable resume mechanism)
                         processed_files.add(filename)
-
-                        # Write processed files list
                         with open(checkpoint_files_list, 'w', encoding='utf-8') as f:
                             for fname in sorted(processed_files):
                                 f.write(fname + '\n')
 
-                        # Save checkpoint graph
-                        nx.write_gml(G, checkpoint_graph_file)
-
-                        msg = f"  Checkpoint saved ({len(processed_files)} files processed)"
+                        msg = f"  File {filename} processed successfully ({len(processed_files)} total)"
                         print(msg)
                         logger.info(msg)
+
+                        # TIER 2: Periodically save the large graph file to minimize I/O conflicts
+                        if files_completed_this_run % CHECKPOINT_INTERVAL == 0:
+                            nx.write_gml(G, checkpoint_graph_file)
+                            msg = f"  Graph checkpoint saved (every {CHECKPOINT_INTERVAL} files)"
+                            print(msg)
+                            logger.info(msg)
                     else:
                         failed_files += 1
                         msg = f"  File {filename} produced no chunks"
@@ -809,6 +818,15 @@ def main():
                     logger.error(msg)
                     failed_files += 1
                     continue
+
+        # FINAL SAVE: After all parallel jobs complete, save one final checkpoint
+        if files_completed_this_run > 0:
+            print("\nSaving final checkpoint after parallel processing...")
+            logger.info("\nSaving final checkpoint after parallel processing...")
+            nx.write_gml(G, checkpoint_graph_file)
+            msg = f"Final checkpoint saved with {G.number_of_nodes()} nodes"
+            print(msg)
+            logger.info(msg)
 
     print("\n" + "=" * 80)
     print("PROCESSING COMPLETE")
