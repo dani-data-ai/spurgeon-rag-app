@@ -54,3 +54,7 @@ Thumbs.db
 
 # Logs
 *.log
+# Checkpoint files (too large for GitHub)
+checkpoint_*.gml
+# Vector database files
+puritan_vector_db/
