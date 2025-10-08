@@ -54,7 +54,17 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
 # Checkpoint files (too large for GitHub)
 checkpoint_*.gml
+
+# Graph files (can be large)
+graph_*.gml
+puritan_master_graph.gml
+
+# Processed files tracking
+processed_files_*.txt
+
 # Vector database files
 puritan_vector_db/

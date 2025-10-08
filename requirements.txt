@@ -7,3 +7,14 @@ chromadb>=0.4.0
 pypdf>=3.0.0
 sentence-transformers>=2.2.0
 requests>=2.31.0
+
+# RAG Pipeline dependencies
+networkx>=3.0
+spacy>=3.5.0
+PyMuPDF>=1.23.0
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Download spaCy model after installation:
+# python -m spacy download en_core_web_sm
