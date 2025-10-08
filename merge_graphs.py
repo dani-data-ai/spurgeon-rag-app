@@ -18,12 +18,16 @@ def find_graph_files(directory: str) -> List[Path]:
     if not graph_dir.exists():
         raise FileNotFoundError(f"Directory not found: {directory}")
 
-    gml_files = list(graph_dir.rglob('*.gml'))
+    # Find all .gml files but exclude the master graph to avoid circular merging
+    gml_files = [
+        f for f in graph_dir.rglob('*.gml')
+        if f.name != 'puritan_master_graph.gml'
+    ]
     return sorted(gml_files)
 
-def merge_graphs(file_paths: List[Path]) -> nx.DiGraph:
+def merge_graphs(file_paths: List[Path]) -> nx.Graph:
     """Load and merge all graphs from the given file paths."""
-    master_graph = nx.DiGraph()
+    master_graph = nx.Graph()
 
     for file_path in file_paths:
         print(f"Loading: {file_path.name}")

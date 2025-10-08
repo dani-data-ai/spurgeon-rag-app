@@ -28,7 +28,7 @@ class GraphBuilder:
             nlp: Shared spaCy model instance
         """
         self.nlp = nlp
-        self.graph = nx.DiGraph()
+        self.graph = nx.Graph()
         self.entity_counter = Counter()
 
         # Initialize phrase matchers for custom entities
@@ -231,7 +231,7 @@ class GraphBuilder:
             logger.error(f"Failed to load checkpoint: {e}", exc_info=True)
             return False
 
-    def merge_graph(self, other_graph: nx.DiGraph):
+    def merge_graph(self, other_graph: nx.Graph):
         """
         Merge another graph into this one.
 
