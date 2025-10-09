@@ -1,0 +1,50 @@
+# Phase 1: Faiss Vector Store Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+numpy==1.24.3
+pandas==2.0.3
+pyarrow==12.0.1
+
+# Resource monitoring
+psutil==5.9.5
+
+# Faiss - Try GPU first, fallback to CPU if CUDA issues
+# GPU version (requires CUDA 11.7+):
+faiss-gpu==1.7.4
+
+# If GPU install fails, uninstall and use CPU version:
+# pip uninstall faiss-gpu
+# pip install faiss-cpu==1.7.4
+
+# Progress bars
+tqdm==4.65.0
+
+# Optional: For Chroma export (only if migrating from existing Chroma DB)
+# chromadb==0.4.15
+
+# ==============================================================================
+# GPU INSTALLATION NOTES
+# ==============================================================================
+#
+# CUDA Requirements:
+# - faiss-gpu 1.7.4 requires CUDA 11.7 or higher
+# - Check your CUDA version: nvidia-smi
+# - Driver must support CUDA 11.7+ (usually driver >= 515.x on Linux, >= 516.x on Windows)
+#
+# Common Issues:
+# 1. "ImportError: libfaiss.so: cannot open shared object file"
+#    → CUDA not installed or version mismatch
+#    → Solution: Install faiss-cpu instead
+#
+# 2. "RuntimeError: CUDA initialization: No CUDA-capable device is detected"
+#    → No GPU detected or driver issue
+#    → Solution: Check nvidia-smi, update drivers, or use faiss-cpu
+#
+# 3. "GPU available: 0" when you have a GPU
+#    → CUDA version mismatch
+#    → Solution: Check CUDA version and reinstall matching faiss-gpu or use faiss-cpu
+#
+# Verify Installation:
+# python -c "import faiss; print(f'Faiss version: {faiss.__version__}'); print(f'GPUs available: {faiss.get_num_gpus()}')"
+#
