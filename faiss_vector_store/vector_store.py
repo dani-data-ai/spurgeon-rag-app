@@ -211,19 +211,19 @@ class FaissVectorStore:
             logger.info(f"Creating Flat index (dim={self.dimension}) for small dataset")
             return self.faiss.IndexFlatL2(self.dimension)
 
-        logger.info(f"Creating new IVF+PQ index (dim={self.dimension})")
-        logger.info(f"Parameters: nlist={config.FAISS_NLIST}, M={config.FAISS_PQ_M}, bits={config.FAISS_PQ_BITS}")
+        logger.info(f"Creating new IVFFlat index (dim={self.dimension})")
+        logger.info(f"Parameters: nlist={config.FAISS_NLIST}, nprobe={config.FAISS_NPROBE}")
 
         # Create quantizer (for IVF)
         quantizer = self.faiss.IndexFlatL2(self.dimension)
 
-        # Create IVF+PQ index
-        index = self.faiss.IndexIVFPQ(
+        # Create IVFFlat index (more stable than IVF+PQ on Windows)
+        # Note: IVFFlat doesn't compress vectors, so it uses more memory
+        # but is more reliable across platforms
+        index = self.faiss.IndexIVFFlat(
             quantizer,
             self.dimension,
-            config.FAISS_NLIST,  # number of cells
-            config.FAISS_PQ_M,   # number of sub-quantizers
-            config.FAISS_PQ_BITS  # bits per sub-vector
+            config.FAISS_NLIST  # number of cells
         )
 
         # Set search parameter
@@ -295,6 +295,9 @@ class FaissVectorStore:
         if embeddings.dtype != np.float32:
             embeddings = embeddings.astype(np.float32)
 
+        # Ensure contiguous memory layout (required by Faiss)
+        embeddings = np.ascontiguousarray(embeddings)
+
         num_vectors = len(embeddings)
         logger.info(f"Adding {num_vectors:,} documents...")
 
@@ -306,26 +309,14 @@ class FaissVectorStore:
             )
 
         # Create index if doesn't exist
-        # Use Flat index for small datasets to avoid training issues
-        min_train_size = 256 * config.FAISS_NLIST
+        # Phase 1: Use Flat index for all datasets (stable on all platforms)
+        # Phase 2+ can add IVF index support for large datasets
         if self.index is None:
-            use_flat = (self.index is None and num_vectors < 10000)
-            self.index = self._create_index(use_flat=use_flat)
+            logger.info("Phase 1: Using Flat index for maximum stability")
+            self.index = self._create_index(use_flat=True)
 
-        # Train index if not trained (only needed for IVF-based indexes)
-        if not self.is_trained and hasattr(self.index, 'is_trained'):
-            if num_vectors < min_train_size:
-                logger.warning(
-                    f"Training with {num_vectors} vectors (recommended: {min_train_size}+). "
-                    f"Consider adding more data for better accuracy."
-                )
-
-            logger.info(f"Training index on {num_vectors:,} vectors...")
-            self.index.train(embeddings)
-            self.is_trained = True
-            logger.info("✓ Index trained")
-        elif not hasattr(self.index, 'is_trained'):
-            # Flat index doesn't need training
+        # Flat index doesn't need training
+        if not self.is_trained:
             self.is_trained = True
 
         # Process in batches
@@ -416,7 +407,13 @@ class FaissVectorStore:
             search_index = self.gpu_index
 
         # Search
-        distances, indices = search_index.search(query_embedding, top_k)
+        try:
+            # Ensure vectors are contiguous in memory (required by Faiss)
+            query_embedding = np.ascontiguousarray(query_embedding)
+            distances, indices = search_index.search(query_embedding, top_k)
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            raise
 
         # Flatten results
         distances = distances[0].tolist()

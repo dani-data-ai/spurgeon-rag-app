@@ -6,7 +6,7 @@ Drop-in replacement for Chroma using Faiss with GPU acceleration and resource co
 
 This is a **basic but functional** migration that includes:
 
-- ✅ Core Faiss IVF+PQ index with GPU support
+- ✅ Core Faiss Flat index with GPU support (100% stable, exact search)
 - ✅ Resource monitoring (RAM/VRAM limits)
 - ✅ Batch processing
 - ✅ Chroma-compatible API
