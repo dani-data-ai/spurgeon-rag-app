@@ -197,8 +197,20 @@ class FaissVectorStore:
         else:
             logger.info("No existing index found, will create new one on first add")
 
-    def _create_index(self) -> Any:
-        """Create a new Faiss IVF+PQ index."""
+    def _create_index(self, use_flat=False) -> Any:
+        """
+        Create a new Faiss index.
+
+        Args:
+            use_flat: If True, create simple Flat index instead of IVF+PQ
+
+        Returns:
+            Faiss index
+        """
+        if use_flat:
+            logger.info(f"Creating Flat index (dim={self.dimension}) for small dataset")
+            return self.faiss.IndexFlatL2(self.dimension)
+
         logger.info(f"Creating new IVF+PQ index (dim={self.dimension})")
         logger.info(f"Parameters: nlist={config.FAISS_NLIST}, M={config.FAISS_PQ_M}, bits={config.FAISS_PQ_BITS}")
 
@@ -294,12 +306,14 @@ class FaissVectorStore:
             )
 
         # Create index if doesn't exist
-        if self.index is None:
-            self.index = self._create_index()
-
-        # Train index if not trained (needs at least 256 * nlist vectors)
+        # Use Flat index for small datasets to avoid training issues
         min_train_size = 256 * config.FAISS_NLIST
-        if not self.is_trained:
+        if self.index is None:
+            use_flat = (self.index is None and num_vectors < 10000)
+            self.index = self._create_index(use_flat=use_flat)
+
+        # Train index if not trained (only needed for IVF-based indexes)
+        if not self.is_trained and hasattr(self.index, 'is_trained'):
             if num_vectors < min_train_size:
                 logger.warning(
                     f"Training with {num_vectors} vectors (recommended: {min_train_size}+). "
@@ -310,6 +324,9 @@ class FaissVectorStore:
             self.index.train(embeddings)
             self.is_trained = True
             logger.info("✓ Index trained")
+        elif not hasattr(self.index, 'is_trained'):
+            # Flat index doesn't need training
+            self.is_trained = True
 
         # Process in batches
         batch_size = config.DEFAULT_BATCH_SIZE

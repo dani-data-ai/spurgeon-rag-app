@@ -24,7 +24,14 @@
       "Bash(\"C:\\Users\\danieo\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe\" --version)",
       "Bash(gh:*)",
       "Bash(git reset:*)",
-      "Bash(git filter-branch --tree-filter 'if [ -f app.py ]; then sed -i \"\"s/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//g\"\" app.py; sed -i \"\"s/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//g\"\" app.py; fi' --tag-name-filter cat -- --all)"
+      "Bash(git filter-branch --tree-filter 'if [ -f app.py ]; then sed -i \"\"s/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//g\"\" app.py; sed -i \"\"s/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//g\"\" app.py; fi' --tag-name-filter cat -- --all)",
+      "Bash(Select-Object -Last 80)",
+      "Bash(tee:*)",
+      "Bash(git push:*)",
+      "Bash(tasklist)",
+      "Bash(tasklist:*)",
+      "Read(//c/**)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []
