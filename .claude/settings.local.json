@@ -31,7 +31,10 @@
       "Bash(tasklist)",
       "Bash(tasklist:*)",
       "Read(//c/**)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(if exist test_index.faiss del test_index.faiss)",
+      "Bash(if exist test_metadata.parquet del test_metadata.parquet)",
+      "Bash(if exist faiss_metrics.csv del faiss_metrics.csv)"
     ],
     "deny": [],
     "ask": []
