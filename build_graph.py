@@ -1,6 +1,12 @@
 """
 Build Knowledge Graph from Theology Library
-Processes all PDF and EPUB files in a directory and builds a unified NetworkX graph.
+Processes all document files in a directory and builds a unified NetworkX graph.
+
+Supported formats:
+- PDF, EPUB, MOBI (ebooks)
+- TXT, MD, Markdown, RST (text)
+- DOC, DOCX, ODT, RTF (word processors)
+- HTML, HTM (web)
 """
 
 import os
@@ -20,6 +26,15 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import Counter
+
+# Universal document loader
+try:
+    import textract
+    TEXTRACT_AVAILABLE = True
+except ImportError:
+    TEXTRACT_AVAILABLE = False
+    print("Warning: textract not installed. Install with: pip install textract")
+    print("Falling back to basic loaders for PDF, EPUB, and TXT only")
 
 # Checkpoint interval: save large graph file every N files
 CHECKPOINT_INTERVAL = 5
@@ -82,6 +97,88 @@ def load_epub_text(epub_path):
             text += soup.get_text() + "\n\n"
 
     return text
+
+
+def load_txt_text(txt_path):
+    """Extract text from TXT file."""
+    try:
+        with open(txt_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except UnicodeDecodeError:
+        # Try with different encoding if UTF-8 fails
+        try:
+            with open(txt_path, 'r', encoding='latin-1') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Warning: Could not read {txt_path}: {e}")
+            return ""
+    except Exception as e:
+        print(f"Warning: Could not read {txt_path}: {e}")
+        return ""
+
+
+def load_document_universal(file_path):
+    """
+    Universal document loader that supports many formats.
+    Supports: TXT, MD, PDF, EPUB, MOBI, DOC, DOCX, ODT, RTF, HTML, and more.
+    """
+    file_path = Path(file_path)
+    suffix = file_path.suffix.lower()
+
+    # Try textract first if available (supports most formats)
+    if TEXTRACT_AVAILABLE:
+        try:
+            text = textract.process(str(file_path)).decode('utf-8')
+            return text
+        except Exception as e:
+            print(f"Warning: textract failed for {file_path.name}: {e}")
+            print("Falling back to format-specific loader...")
+
+    # Fallback loaders for specific formats
+    if suffix == '.pdf':
+        return load_pdf_text(file_path)
+    elif suffix == '.epub':
+        return load_epub_text(file_path)
+    elif suffix in ['.txt', '.md', '.markdown', '.rst']:
+        return load_txt_text(file_path)
+    elif suffix in ['.docx', '.doc']:
+        try:
+            import docx2txt
+            return docx2txt.process(str(file_path))
+        except ImportError:
+            print(f"Warning: docx2txt not installed. Install with: pip install docx2txt")
+            return ""
+        except Exception as e:
+            print(f"Warning: Could not read {file_path.name}: {e}")
+            return ""
+    elif suffix == '.odt':
+        try:
+            from odf import text as odf_text, teletype
+            from odf.opendocument import load
+            textdoc = load(str(file_path))
+            allparas = textdoc.getElementsByType(odf_text.P)
+            return "\n".join([teletype.extractText(para) for para in allparas])
+        except ImportError:
+            print(f"Warning: odfpy not installed. Install with: pip install odfpy")
+            return ""
+        except Exception as e:
+            print(f"Warning: Could not read {file_path.name}: {e}")
+            return ""
+    elif suffix in ['.html', '.htm']:
+        try:
+            from bs4 import BeautifulSoup
+            with open(file_path, 'r', encoding='utf-8') as f:
+                soup = BeautifulSoup(f.read(), 'html.parser')
+                return soup.get_text()
+        except ImportError:
+            print(f"Warning: beautifulsoup4 not installed. Install with: pip install beautifulsoup4")
+            return ""
+        except Exception as e:
+            print(f"Warning: Could not read {file_path.name}: {e}")
+            return ""
+    else:
+        print(f"Warning: Unsupported format '{suffix}' for {file_path.name}")
+        return ""
 
 
 def clean_text(text):
@@ -421,7 +518,7 @@ def apply_domain_heuristics(chunk_text, doctrinal_keywords, historical_figures):
 
 
 def process_file_worker(file_info):
-    """Process a single PDF or EPUB file through the pipeline (worker function for parallel processing)."""
+    """Process a single document file through the pipeline (worker function for parallel processing)."""
     file_path, file_index = file_info
 
     # Load spaCy model in worker process
@@ -430,13 +527,8 @@ def process_file_worker(file_info):
     print(f"\nProcessing file {file_index}: {file_path.name}")
     print("-" * 80)
 
-    # Load text based on file type
-    if file_path.suffix.lower() == '.pdf':
-        raw_text = load_pdf_text(file_path)
-    elif file_path.suffix.lower() == '.epub':
-        raw_text = load_epub_text(file_path)
-    else:
-        return file_path.name, []
+    # Load text using universal loader
+    raw_text = load_document_universal(file_path)
 
     if not raw_text or len(raw_text) < 100:
         print(f"  Warning: Extracted text too short or empty. Skipping.")
@@ -699,24 +791,36 @@ def main():
         print("\nStarting fresh build (no checkpoint found)")
         logger.info("\nStarting fresh build (no checkpoint found)")
 
-    # Recursively find all PDF and EPUB files in all subdirectories
-    print("\nSearching for files in all subdirectories...")
-    logger.info("\nSearching for files in all subdirectories...")
+    # Supported document formats (excluding audio/video/binary)
+    SUPPORTED_EXTENSIONS = (
+        '.pdf', '.epub', '.txt', '.md', '.markdown', '.rst',
+        '.doc', '.docx', '.odt', '.rtf', '.html', '.htm', '.mobi'
+    )
+
+    # Recursively find all supported document files in all subdirectories
+    print("\nSearching for document files in all subdirectories...")
+    logger.info("\nSearching for document files in all subdirectories...")
     all_files = []
 
     for root, dirs, files in os.walk(args.source):
         for filename in files:
-            if filename.lower().endswith(('.pdf', '.epub')):
+            if filename.lower().endswith(SUPPORTED_EXTENSIONS):
                 file_path = Path(root) / filename
                 all_files.append(file_path)
 
     # Count by type
-    pdf_files = [f for f in all_files if f.suffix.lower() == '.pdf']
-    epub_files = [f for f in all_files if f.suffix.lower() == '.epub']
+    from collections import defaultdict
+    file_counts = defaultdict(int)
+    for f in all_files:
+        file_counts[f.suffix.lower()] += 1
 
-    msg = f"Found {len(pdf_files)} PDF files and {len(epub_files)} EPUB files"
+    msg = "Found files by type:"
     print(msg)
     logger.info(msg)
+    for ext, count in sorted(file_counts.items()):
+        msg = f"  {ext}: {count} files"
+        print(msg)
+        logger.info(msg)
 
     msg = f"Total files to process: {len(all_files)}"
     print(msg)
@@ -730,10 +834,10 @@ def main():
 
     # Process all files in parallel
     print("\n" + "=" * 80)
-    print("PROCESSING FILES IN PARALLEL (4 workers)")
+    print("PROCESSING FILES IN PARALLEL (6 workers)")
     print("=" * 80)
     logger.info("\n" + "=" * 80)
-    logger.info("PROCESSING FILES IN PARALLEL (4 workers)")
+    logger.info("PROCESSING FILES IN PARALLEL (6 workers)")
     logger.info("=" * 80)
 
     successful_files = len(processed_files)  # Start with already processed count
@@ -754,13 +858,13 @@ def main():
         print("All files already processed!")
         logger.info("All files already processed!")
     else:
-        print(f"Processing {len(files_to_process)} files with 4 parallel workers...")
-        logger.info(f"Processing {len(files_to_process)} files with 4 parallel workers...")
+        print(f"Processing {len(files_to_process)} files with 6 parallel workers...")
+        logger.info(f"Processing {len(files_to_process)} files with 6 parallel workers...")
         print(f"Graph checkpoint will be saved every {CHECKPOINT_INTERVAL} files")
         logger.info(f"Graph checkpoint will be saved every {CHECKPOINT_INTERVAL} files")
 
         # Use ProcessPoolExecutor for parallel processing
-        with ProcessPoolExecutor(max_workers=4) as executor:
+        with ProcessPoolExecutor(max_workers=6) as executor:
             # Submit all jobs
             future_to_file = {executor.submit(process_file_worker, file_info): file_info
                             for file_info in files_to_process}
@@ -853,52 +957,12 @@ def main():
         logger.warning(msg)
         return
 
-    # Build edges for the graph
-    print("\nBuilding graph edges...")
-    print("=" * 80)
-    logger.info("\nBuilding graph edges...")
-
-    # Add edges based on shared entities, keywords, and figures
-    chunks_by_parent = {}
-    for chunk in all_library_chunks:
-        parent = chunk['parent_id']
-        if parent not in chunks_by_parent:
-            chunks_by_parent[parent] = []
-        chunks_by_parent[parent].append(chunk)
-
-    edge_count = 0
-
-    # Parent-child edges (hierarchical)
-    for parent_id, chunks in chunks_by_parent.items():
-        for i, chunk1 in enumerate(chunks):
-            for chunk2 in chunks[i+1:]:
-                G.add_edge(chunk1['unique_id'], chunk2['unique_id'],
-                          relationship='sibling', weight=1.0)
-                edge_count += 1
-
-    # Entity-based edges (semantic)
-    for i, chunk1 in enumerate(all_library_chunks):
-        for chunk2 in all_library_chunks[i+1:]:
-            # Calculate overlap
-            entities1 = set(chunk1['entities'])
-            entities2 = set(chunk2['entities'])
-            keywords1 = set(chunk1['keywords'])
-            keywords2 = set(chunk2['keywords'])
-            figures1 = set(chunk1['figures'])
-            figures2 = set(chunk2['figures'])
-
-            entity_overlap = len(entities1 & entities2)
-            keyword_overlap = len(keywords1 & keywords2)
-            figure_overlap = len(figures1 & figures2)
-
-            if entity_overlap > 0 or keyword_overlap > 0 or figure_overlap > 0:
-                weight = entity_overlap + keyword_overlap + figure_overlap
-                G.add_edge(chunk1['unique_id'], chunk2['unique_id'],
-                          relationship='semantic', weight=weight)
-                edge_count += 1
-
-    print(f"Added {edge_count} edges to graph")
-    logger.info(f"Graph built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+    # NOTE: Edge building is skipped here for performance with large graphs
+    # Use add_edges_memory_optimized.py to add edges efficiently:
+    #   python add_edges_memory_optimized.py --source-dir . --workers 7
+    print("\nSkipping edge building (use add_edges_memory_optimized.py for large graphs)")
+    logger.info("\nSkipping edge building - nodes only graph")
+    logger.info(f"Graph built with {G.number_of_nodes()} nodes (edges to be added separately)")
 
     # Save final graph
     print(f"\nSaving graph to {output_file}...")

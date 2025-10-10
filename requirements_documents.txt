@@ -1,0 +1,28 @@
+# Universal Document Processing Requirements
+# Install with: pip install -r requirements_documents.txt
+
+# Core dependencies (already in main requirements.txt)
+pypdf
+spacy
+networkx
+scikit-learn
+langchain
+
+# EPUB support
+ebooklib
+beautifulsoup4
+
+# Universal document loader (supports most formats including MOBI, DOC, etc.)
+textract
+
+# Alternative/fallback loaders for specific formats
+docx2txt          # For .docx files
+odfpy             # For .odt files (OpenDocument)
+python-docx       # Alternative for .docx
+
+# HTML parsing (already may be installed with ebooklib)
+lxml
+
+# Optional: For better text extraction
+chardet           # Character encoding detection
+python-magic      # File type detection (requires libmagic on Windows)
