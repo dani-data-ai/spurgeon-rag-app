@@ -58,6 +58,11 @@ logs/
 
 # Checkpoint files (too large for GitHub)
 checkpoint_*.gml
+checkpoint_*.tmp.db
+checkpoint_*.tmp.db-shm
+checkpoint_*.tmp.db-wal
+checkpoint_*.progress.json
+checkpoint_*.telemetry.csv
 
 # Graph files (can be large)
 graph_*.gml
@@ -68,3 +73,11 @@ processed_files_*.txt
 
 # Vector database files
 puritan_vector_db/
+
+# Test data
+faiss_vector_store/real_data_tests/
+faiss_vector_store/tests/
+
+# Temporary files
+nul
+add_edges_memory_optimized_old.py
