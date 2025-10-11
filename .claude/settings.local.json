@@ -61,7 +61,8 @@
       "Bash(./neo4j-admin database import full:*)",
       "Bash(./neo4j-admin.bat database import full:*)",
       "Bash(systeminfo)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(export FILTER_BRANCH_SQUELCH_WARNING=1)"
     ],
     "deny": [],
     "ask": []
