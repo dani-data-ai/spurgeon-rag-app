@@ -58,6 +58,7 @@ logs/
 
 # Checkpoint files (too large for GitHub)
 checkpoint_*.gml
+checkpoint_*.csv
 checkpoint_*.tmp.db
 checkpoint_*.tmp.db-shm
 checkpoint_*.tmp.db-wal
